@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             renderUMAP('cluster'); // Show clusters by default on load
         })
         .catch(e => {
-            document.getElementById('umapPlot').innerHTML = '<div class="loading">UMAP data not available. Run generate_web_data.R to create umap_coordinates.csv</div>';
+            document.getElementById('umapPlot').innerHTML = '<div class="loading">UMAP data not available./div>';
         });
     
     // Load gene list
@@ -216,7 +216,7 @@ function createAutocompleteDropdown(inputElement, suggestions) {
                     // Trigger UMAP load
                     const geneName = inputElement.value.trim();
                     if (geneName) {
-                        document.getElementById('umapPlot').innerHTML = '<div class="loading">Loading gene expression...</div>';
+                        document.getElementById('umapPlot').innerHTML = '<div class="loading"></div>';
                         loadGeneExpression(geneName).then(expr => {
                             if (expr) {
                                 renderUMAP('gene', expr);
@@ -333,31 +333,82 @@ function populateClusterTable() {
 function populateGeneTable() {
     const tbody = document.querySelector('#geneDataTable tbody');
     tbody.innerHTML = '';
-    
+
+    // Build wide-format rows from geneDistData
+    const geneMap = {};
+
+    geneDistData.forEach(row => {
+        const gene = row.gene;
+        const ipn = parseInt(row.IPN_domain);
+        const cells = parseInt(row.n_cells || 0);
+
+        if (!geneMap[gene]) {
+            geneMap[gene] = {
+                gene: gene,
+                Di: 0,
+                Dii: 0,
+                I: 0,
+                Vi: 0,
+                Vii: 0,
+                Viii: 0
+            };
+        }
+
+        const code = ipnDomainInfo[ipn]?.code;
+        if (code) {
+            geneMap[gene][code] += cells;
+        }
+    });
+
+    let wideGeneData = Object.values(geneMap).sort((a, b) => a.gene.localeCompare(b.gene));
+
+    const filter = document.getElementById('geneTableFilter')?.value?.toLowerCase() || '';
+    if (filter) {
+        wideGeneData = wideGeneData.filter(r => r.gene.toLowerCase().includes(filter));
+    }
+
     const start = (geneTablePage - 1) * genesPerPage;
-    const pageData = filteredGeneData.slice(start, start + genesPerPage);
-    
+    const pageData = wideGeneData.slice(start, start + genesPerPage);
+
     pageData.forEach(row => {
         const tr = document.createElement('tr');
-        const dom = ipnDomainInfo[parseInt(row.dominant_IPN)];
         tr.innerHTML = `
             <td>${row.gene}</td>
-            <td>${dom ? dom.code : row.dominant_IPN}</td>
-            <td>${parseFloat(row.percent).toFixed(1)}%</td>
-            <td>${row.total_expressing}</td>
+            <td>${row.Di}</td>
+            <td>${row.Dii}</td>
+            <td>${row.I}</td>
+            <td>${row.Vi}</td>
+            <td>${row.Vii}</td>
+            <td>${row.Viii}</td>
         `;
         tr.onclick = () => viewGeneOnUMAP(row.gene);
         tbody.appendChild(tr);
     });
-    
-    const totalPages = Math.ceil(filteredGeneData.length / genesPerPage);
+
+    const totalPages = Math.ceil(wideGeneData.length / genesPerPage);
     document.getElementById('genePageInfo').textContent = `Page ${geneTablePage} of ${totalPages}`;
     document.getElementById('genePrevBtn').disabled = geneTablePage <= 1;
     document.getElementById('geneNextBtn').disabled = geneTablePage >= totalPages;
 }
 
 function changeGenePage(delta) {
-    const totalPages = Math.ceil(filteredGeneData.length / genesPerPage);
+    const geneMap = {};
+
+    geneDistData.forEach(row => {
+        const gene = row.gene;
+        if (!geneMap[gene]) {
+            geneMap[gene] = true;
+        }
+    });
+
+    let wideGeneData = Object.keys(geneMap).sort();
+
+    const filter = document.getElementById('geneTableFilter')?.value?.toLowerCase() || '';
+    if (filter) {
+        wideGeneData = wideGeneData.filter(g => g.toLowerCase().includes(filter));
+    }
+
+    const totalPages = Math.ceil(wideGeneData.length / genesPerPage);
     geneTablePage = Math.max(1, Math.min(totalPages, geneTablePage + delta));
     populateGeneTable();
 }
@@ -607,13 +658,11 @@ async function loadGeneExpression(geneName) {
 }
 
 function viewGeneOnUMAP(geneName) {
-    document.getElementById('umapColorSelect').value = 'gene';
-    document.getElementById('geneSelectContainer').style.display = 'block';
     document.getElementById('umapGeneInput').value = geneName;
     
     // Switch to UMAP tab
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.querySelectorAll('.nav-item')[6].classList.add('active');
+    document.querySelectorAll('.nav-item')[3].classList.add('active');
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.getElementById('umap-viz').classList.add('active');
     
@@ -629,12 +678,8 @@ function viewGeneOnUMAP(geneName) {
 }
 
 function viewClusterOnUMAP(clusterName) {
-    document.getElementById('umapColorSelect').value = 'cluster';
-    document.getElementById('geneSelectContainer').style.display = 'none';
-    
-    // Switch to UMAP tab
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.querySelectorAll('.nav-item')[6].classList.add('active');
+    document.querySelectorAll('.nav-item')[3].classList.add('active');
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.getElementById('umap-viz').classList.add('active');
     
@@ -658,6 +703,51 @@ function downloadPlot() {
         height: 800,
         filename: 'umap_plot'
     });
+}
+
+function downloadWideGeneCSV() {
+    const geneMap = {};
+
+    geneDistData.forEach(row => {
+        const gene = row.gene;
+        const ipn = parseInt(row.IPN_domain);
+        const cells = parseInt(row.n_cells || 0);
+
+        if (!geneMap[gene]) {
+            geneMap[gene] = {
+                Gene: gene,
+                Di: 0,
+                Dii: 0,
+                I: 0,
+                Vi: 0,
+                Vii: 0,
+                Viii: 0
+            };
+        }
+
+        const code = ipnDomainInfo[ipn]?.code;
+        if (code) {
+            geneMap[gene][code] += cells;
+        }
+    });
+
+    const rows = Object.values(geneMap).sort((a, b) => a.Gene.localeCompare(b.Gene));
+
+    const headers = ['Gene', 'Di', 'Dii', 'I', 'Vi', 'Vii', 'Viii'];
+    const csv = [
+        headers.join(','),
+        ...rows.map(row => headers.map(h => row[h]).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'gene_ipn_subdomain_counts.csv';
+    link.click();
+
+    URL.revokeObjectURL(url);
 }
 
 // ============================================================
@@ -698,12 +788,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const geneTableFilter = document.getElementById('geneTableFilter');
     if (geneTableFilter) {
         geneTableFilter.addEventListener('input', function() {
-            const filter = this.value.toLowerCase();
-            filteredGeneData = filter ? geneData.filter(r => r.gene.toLowerCase().includes(filter)) : [...geneData];
             geneTablePage = 1;
             populateGeneTable();
         });
     }
+
+
 
     const umapGeneInput = document.getElementById('umapGeneInput');
     if (umapGeneInput) {
@@ -717,7 +807,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (expr) {
                             renderUMAP('gene', expr);
                         } else {
-                            document.getElementById('umapPlot').innerHTML = '<div class="loading">Gene expression data not found. Check gene name or run generate_web_data.R</div>';
+                            document.getElementById('umapPlot').innerHTML = '<div class="loading">Gene expression data not found. Check gene name.R</div>';
                         }
                     });
                 }

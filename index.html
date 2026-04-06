@@ -321,6 +321,56 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        .ipn-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .ipn-text {
+            flex: 1;
+        }
+
+        .ipn-image {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+
+        .ipn-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        .ipn-images {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: flex-end; /* keeps it on right side */
+        }
+
+        .ipn-figure {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 220px;
+        }
+
+        .ipn-figure img {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        .caption {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            color: #555;
+            text-align: center;
+        }
         
         .pagination button:hover:not(:disabled) { background: var(--cream); }
         .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -387,8 +437,8 @@
         <a class="nav-item" onclick="showTab('umap-viz')">UMAP Explorer</a>
         
         <div class="nav-section">Data Tables</div>
-        <a class="nav-item" onclick="showTab('full-table')">Cluster Mapping</a>
-        <a class="nav-item" onclick="showTab('gene-table')">Gene Mapping</a>
+        <a class="nav-item" onclick="showTab('full-table')">Cluster Distribution</a>
+        <a class="nav-item" onclick="showTab('gene-table')">dHb Transcript</a>
     </nav>
     
     <div class="main-content">
@@ -398,23 +448,39 @@
             <h2>About This Database</h2>
             
             <div class="info-box">
-                <p>This database maps transcriptomic neuronal clusters and gene expression patterns in the zebrafish dorsal habenula (dHb) to their predicted axonal projection targets in specific subdomains of the interpeduncular nucleus (IPN).</p>
-                <p>The predictions are based on a machine learning classifier (XGBoost) trained on transgenic line labeling data.</p>
+                <p>This database maps the projections of neuronal clusters in the zebrafish dorsal habenulae (dHb), defined by their gene expression patterns, to specific subdomains of the target interpeduncular nucleus (IPN).</p>
+                <p>The predictions are based on a machine learning classifier (XGBoost) trained on data from fluorescent labeling of zebrafish transgenic lines.</p>
             </div>
             
             <h3>IPN Subdomains</h3>
-            <div class="info-box">
-                <div class="legend-item"><strong>Di</strong> - Dorsal IPN, subdomain i</div>
-                <div class="legend-item"><strong>Dii</strong> - Dorsal IPN, subdomain ii</div>
-                <div class="legend-item"><strong>I</strong> - Intermediate IPN</div>
-                <div class="legend-item"><strong>Vi</strong> - Ventral IPN, subdomain i</div>
-                <div class="legend-item"><strong>Vii</strong> - Ventral IPN, subdomain ii</div>
-                <div class="legend-item"><strong>Viii</strong> - Ventral IPN, subdomain iii</div>
+            <div class="info-box ipn-container">
+                
+                <div class="ipn-text">
+                    <div class="legend-item"><strong>Di</strong> - Dorsal IPN, subdomain i</div>
+                    <div class="legend-item"><strong>Dii</strong> - Dorsal IPN, subdomain ii</div>
+                    <div class="legend-item"><strong>I</strong> - Intermediate IPN</div>
+                    <div class="legend-item"><strong>Vi</strong> - Ventral IPN, subdomain i</div>
+                    <div class="legend-item"><strong>Vii</strong> - Ventral IPN, subdomain ii</div>
+                    <div class="legend-item"><strong>Viii</strong> - Ventral IPN, subdomain iii</div>
+                </div>
+
+               <div class="ipn-images">
+                    <div class="ipn-figure">
+                        <img src="larva.png" alt="Larval IPN diagram">
+                        <p class="caption">Larval zebrafish IPN subdomains</p>
+                    </div>
+
+                    <div class="ipn-figure">
+                        <img src="larva.png" alt="Adult IPN diagram">
+                        <p class="caption">Adult zebrafish IPN subdomains</p>
+                    </div>
+                </div>
+
             </div>
             
             <div class="footer">
-                <p><strong>Halpern Lab</strong> Geisel School of Medicine at Dartmouth</p>
-                <p><strong>Data:</strong> single cell dataset from Pandey et al. (2018). <em>Current Biology</em>, 28(7), 1052-1065.</p>
+                <p><strong>Halpern Lab</strong> Geisel School of Medicine at Dartmouth, developed by Tanya N. Budhiraja </p>
+                <p><strong>Data:</strong> Single cell RNA-seqdataset from Pandey et al. (2018). <em>Current Biology</em>, 28(7), 1052-1065.</p>
             </div>
         </div>
         
@@ -462,11 +528,12 @@
         <!-- GENE TO IPN -->
         <div id="gene-lookup" class="tab-content">
             <h2>Gene to IPN Lookup</h2>
-            <p>Search for a gene to see which IPN domains express it.</p>
-            
+            <p>Search for a gene to see where dHb neurons expressing it project to the IPN.</p>
+            <p>Abbreviated gene names can be found at <a href="https://www.zfin.org">zfin.org.</a></p>
+
             <label>Search gene:</label><br>
             <div class="autocomplete">
-                <input type="text" id="geneSearchInput" placeholder="Type gene name (e.g., SLC5A7A, PNOCA)...">
+                <input type="text" id="geneSearchInput" placeholder="Type gene abbreviation (e.g., SLC5A7A, PNOCA)...">
             </div>
             
             <div id="geneResult" class="result-box"></div>
@@ -506,8 +573,8 @@
             <div class="umap-container">
                 <div class="umap-controls">
                     <div class="autocomplete" style="display: inline-block; width: 300px;">
-                        <label>Enter gene name:</label><br>
-                        <input type="text" id="umapGeneInput" placeholder="Type gene name and press Enter..." style="width: 100%;">
+                        <label>Enter gene abbreviation:</label><br>
+                        <input type="text" id="umapGeneInput" placeholder="Type gene abbreviation and press Enter..." style="width: 100%;">
                     </div>
                     <div style="display: inline-block; margin-left: 20px; vertical-align: bottom;">
                         <button class="btn" onclick="downloadPlot()">Download Plot</button>
@@ -515,14 +582,14 @@
                 </div>
                 
                 <div id="umapPlot">
-                    <div class="loading">Loading UMAP data...</div>
+                    <div class="loading"></div>
                 </div>
             </div>
         </div>
         
         <!-- CLUSTER TABLE -->
         <div id="full-table" class="tab-content">
-            <h2>Complete Cluster Mapping</h2>
+            <h2>Cluster Distribution</h2>
             <div class="table-container">
                 <table id="clusterDataTable">
                     <thead>
@@ -541,20 +608,23 @@
         
         <!-- GENE TABLE -->
         <div id="gene-table" class="tab-content">
-            <h2>Complete Gene Mapping</h2>
+            <h2>dHb Transcripts</h2>
             
             <input type="text" id="geneTableFilter" placeholder="Filter genes...">
             
             <div class="table-container">
                 <table id="geneDataTable">
-                    <thead>
-                        <tr>
-                            <th>Gene</th>
-                            <th>Major IPN Region</th>
-                            <th>%</th>
-                            <th>Cells</th>
-                        </tr>
-                    </thead>
+                <thead>
+                    <tr>
+                        <th>Gene</th>
+                        <th>Di</th>
+                        <th>Dii</th>
+                        <th>I</th>
+                        <th>Vi</th>
+                        <th>Vii</th>
+                        <th>Viii</th>
+                    </tr>
+                </thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -564,7 +634,7 @@
                 <span id="genePageInfo">Page 1</span>
                 <button onclick="changeGenePage(1)" id="geneNextBtn">Next</button>
             </div>
-            <button class="btn" onclick="downloadCSV('gene_dominant_IPN.csv')">Download CSV</button>
+            <button class="btn" onclick="downloadWideGeneCSV()">Download CSV</button>
         </div>
     </div>
 

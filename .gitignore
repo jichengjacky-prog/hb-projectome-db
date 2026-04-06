@@ -14,3 +14,4 @@ out/
 ref/
 tpms/
 .DS_Store
+.vscode/
