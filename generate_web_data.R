@@ -1,11 +1,17 @@
 library(Matrix)
 library(dplyr)
 library(Seurat)
+library(SeuratDisk)
 
 #prerequisites
 if (!exists("hb_lar1_renamed")) {
+  if (file.exists("hb_lar1_renamed.rds")){
+    hb_lar1_renamed <- readRDS(file = "hb_lar1_renamed.rds")
+  }
+  else{
   stop("ERROR: hb_lar1_renamed not found in environment.\n
-        Please run hb_scseq_reanalysis_v2.Rmd first.")
+        Please run hb_scseq_reanalysis_v2.Rmd first.")}
+  
 }
 
 if (!file.exists("predict_IPN_idents.csv")) {
@@ -52,9 +58,12 @@ total_genes <- length(gene_names)
 for (i in seq_along(gene_names)) {
   gene <- gene_names[i]
   
+  ## filtering low expression cells for matching transgenic labeling
+  filtermatrix = expr[i, ] > mean(expr[i, ])
+
   gene_df <- data.frame(
     cell_barcode = cell_barcodes,
-    expression = as.numeric(expr[i, ])
+    expression = as.numeric(expr[i, ]*filtermatrix)
   )
   
   # Sanitize gene name for valid filename
@@ -79,7 +88,7 @@ cat("  Loaded:", nrow(mat), "genes x", ncol(mat), "cells\n\n")
 
 #compute gene to ipn Mapping
 gene_ipn_list <- lapply(rownames(mat), function(gene) {
-  expressing_cells <- colnames(mat)[mat[gene, ] > 0]
+  expressing_cells <- colnames(mat)[mat[gene, ] > mea(mat[gene, ])]
   if (length(expressing_cells) == 0) return(NULL)
   
   cell_ipn <- ipn[ipn$cell_barcode %in% expressing_cells, ]

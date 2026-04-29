@@ -477,17 +477,40 @@ function showGeneResult(geneName) {
     }
     
     const dom = ipnDomainInfo[parseInt(gene.dominant_IPN)];
-    let distBar = createDistributionBar(dist);
     
-    resultDiv.innerHTML = `
-        <h3>${gene.gene}</h3>
-        <p><strong>major target:</strong> ${dom.fullName} (${dom.code})</p>
-        <p><strong>Percentage:</strong> ${parseFloat(gene.percent).toFixed(1)}% of expressing cells</p>
-        <p><strong>Expressing cells:</strong> ${gene.total_expressing}</p>
-        ${distBar ? '<h4>IPN Distribution:</h4>' + distBar : ''}
-        <button class="btn" onclick="viewGeneOnUMAP('${gene.gene}')">View on UMAP</button>
-    `;
-    resultDiv.classList.add('visible');
+    // Get filtered distribution for cells expressing at least 50% of max expression
+    filterDist(gene.gene, 0.5).then(filteredDistCsv => {
+        let distBar = '';
+        if (filteredDistCsv) {
+            // Parse CSV back to array for createDistributionBar
+            const parsed = Papa.parse(filteredDistCsv, {header: true, skipEmptyLines: true}).data;
+            distBar = createDistributionBar(parsed);
+        } else {
+            distBar = createDistributionBar(dist); // fallback to original distribution
+        }
+        
+        resultDiv.innerHTML = `
+            <h3>${gene.gene}</h3>
+            <p><strong>major target:</strong> ${dom.fullName} (${dom.code})</p>
+            <p><strong>Percentage:</strong> ${parseFloat(gene.percent).toFixed(1)}% of expressing cells</p>
+            <p><strong>Expressing cells:</strong> ${gene.total_expressing}</p>
+            ${distBar ? '<h4>IPN Distribution (30% threshold):</h4>' + distBar : ''}
+            <button class="btn" onclick="viewGeneOnUMAP('${gene.gene}')">View on UMAP</button>
+        `;
+        resultDiv.classList.add('visible');
+    }).catch(e => {
+        // Fallback to original distribution if filterDist fails
+        let distBar = createDistributionBar(dist);
+        resultDiv.innerHTML = `
+            <h3>${gene.gene}</h3>
+            <p><strong>major target:</strong> ${dom.fullName} (${dom.code})</p>
+            <p><strong>Percentage:</strong> ${parseFloat(gene.percent).toFixed(1)}% of expressing cells</p>
+            <p><strong>Expressing cells:</strong> ${gene.total_expressing}</p>
+            ${distBar ? '<h4>IPN Distribution:</h4>' + distBar : ''}
+            <button class="btn" onclick="viewGeneOnUMAP('${gene.gene}')">View on UMAP</button>
+        `;
+        resultDiv.classList.add('visible');
+    });
 }
 
 function showIPNGeneResult(ipnNum) {
@@ -535,6 +558,63 @@ function createDistributionBar(dist) {
     distLabels += '</div>';
     
     return distBar + distLabels;
+}
+
+async function filterDist(geneName, thresholdFraction = 0.3) {
+    const safeName = geneName.replace(/[^A-Za-z0-9._-]/g, '_');
+    try {
+        const response = await fetch(`gene_data/${safeName}.csv`);
+        if (!response.ok) throw new Error('Gene not found');
+        const csv = await response.text();
+        const data = Papa.parse(csv, {header: true, skipEmptyLines: true}).data;
+
+        if (!data || data.length === 0) {
+            return null;
+        }
+
+        const exprValues = data.map(d => parseFloat(d.expression) || 0);
+        const maxExpr = Math.max(...exprValues);
+        const threshold = maxExpr * thresholdFraction;
+
+        const filtered = data.filter(d => parseFloat(d.expression) >= threshold);
+
+        if (umapData.length === 0 || filtered.length === 0) {
+            return null;
+        }
+
+        const distCounts = {};
+        Object.keys(ipnDomainInfo).forEach(ipn => {
+            distCounts[ipn] = 0;
+        });
+
+        filtered.forEach(d => {
+            const cell = umapData.find(u => u.cell_barcode === d.cell_barcode);
+            if (cell && cell.IPN_domain !== undefined && cell.IPN_domain !== null) {
+                const domainKey = parseInt(cell.IPN_domain, 10);
+                if (ipnDomainInfo[domainKey]) {
+                    distCounts[domainKey] += 1;
+                }
+            }
+        });
+
+        const total = filtered.length;
+        const distArray = Object.entries(distCounts)
+            .map(([ipn, count]) => ({
+                IPN_domain: ipn,
+                count,
+                percent: total ? (count / total * 100) : 0
+            }))
+            .filter(d => d.count > 0)
+            .sort((a, b) => parseInt(a.IPN_domain, 10) - parseInt(b.IPN_domain, 10));
+
+        // Return CSV format with headers and rows
+        const headers = 'IPN_domain,count,percent';
+        const rows = distArray.map(d => `${d.IPN_domain},${d.count},${d.percent.toFixed(1)}`);
+        return [headers, ...rows].join('\n');
+    } catch (e) {
+        console.log('Gene expression file not found:', safeName);
+        return null;
+    }
 }
 
 // ============================================================
@@ -656,6 +736,10 @@ async function loadGeneExpression(geneName) {
         return null;
     }
 }
+
+
+
+
 
 function viewGeneOnUMAP(geneName) {
     document.getElementById('umapGeneInput').value = geneName;
